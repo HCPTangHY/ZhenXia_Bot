@@ -1,0 +1,18 @@
+[project]
+name = "ZhenXia-NoneBot"
+version = "0.1.0"
+description = "ZhenXia-NoneBot"
+readme = "README.md"
+requires-python = ">=3.8, <4.0"
+
+[tool.nonebot]
+adapters = [
+    { name = "OneBot V11", module_name = "nonebot.adapters.onebot.v11" },
+    
+    { name = "RedProtocol", module_name = "nonebot.adapters.red" },
+    
+    {name = "Satori", module_name = "nonebot.adapters.satori"}
+]
+plugins = ["nonebot_plugin_wordle", "nonebot-plugin-yesman", "nonebot_plugin_learning_chat", "nonebot_plugin_datastore"]
+plugin_dirs = ["src/plugins"]
+builtin_plugins = ["echo", "single_session"]
