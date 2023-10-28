@@ -9,7 +9,7 @@ requires-python = ">=3.8, <4.0"
 adapters = [
     { name = "OneBot V11", module_name = "nonebot.adapters.onebot.v11" },
     
-    { name = "RedProtocol", module_name = "nonebot.adapters.red" },
+    
     
     {name = "Satori", module_name = "nonebot.adapters.satori"}
 ]
