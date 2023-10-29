@@ -6,11 +6,11 @@ from nonebot.adapters.red.message import MessageSegment
 import re,os,random
 
 
-models = ["枕小霞1.6","文和武乱1.0","马主义1.2","东方1.0","大明王朝1.0","科幻1.0"]
-modelPath = ["model/ZX1.6","model/whwl1.0","model/marx300","model/TH1.0","model/1566","model/sf1.0"]
+models = ["枕小霞2.0","枕小霞1.6","文和武乱1.0","东方1.0","大明王朝1.0","科幻1.0"]
+modelPath = ["model/ZX2.0","model/ZX1.6","model/whwl1.0","model/TH1.0","model/1566","model/sf1.0"]
 
 ask = on_message(rule=to_me())
-g_message = on_message()
+g_message = on_message(priority=15)
 
 modelUsing = models[0]
 modelUsing = models[0]
@@ -94,9 +94,11 @@ async def g_m(event:MessageEvent):
         print(history)
         ans = GPTchat(history)
         groups[group_id]["msgQueue"] = msgQueueInput(groups[group_id]["msgQueue"],ans)
-        ask.send(MessageSegment.reply(ans,message_id=event.msgId,sender_uin=group_id)+ans)
+        Bot.send_group_message(Bot,int(group_id),ans)
         if ans == "？":
             ans = GPTchat(history)
             print(ans)
             if ans != '？':
                 await ask.send(ans)
+        else:
+            await ask.send(ans)
