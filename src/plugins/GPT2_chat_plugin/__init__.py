@@ -10,7 +10,7 @@ models = ["枕小霞2.0","枕小霞1.6","文和武乱1.0","东方1.0","大明王
 modelPath = ["model/ZX2.0","model/ZX1.6","model/whwl1.0","model/TH1.0","model/1566","model/sf1.0"]
 
 ask = on_message(rule=to_me())
-g_message = on_message(priority=15)
+g_message = on_message(priority=20)
 
 modelUsing = models[0]
 modelUsing = models[0]
