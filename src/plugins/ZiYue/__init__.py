@@ -49,13 +49,19 @@ async def _(matcher: Matcher,state: T_State,args: Message = CommandArg()):
 async def Sentence_upload(state: T_State,event: MessageEvent,prompt: Message = Arg(), msg: Message = Arg("prompt")):
     rt = r"\[image:.*'path': '(.*?)',.*\]"
     path = re.findall(rt, str(msg))
-    fileName = re.findall(r"\[image:.*'path': '.*Ori\\(.*?)',.*\]", str(msg))
+    fileName = re.findall(r"\[image:.*'path': '.*Ori\\\\(.*?)',.*\]", str(msg))
     print(str(msg))
     if len(path) == 0:
         resp = "请上传图片"
         await newSen.reject_arg('prompt', MessageSegment.reply(event.msgSeq) + resp)
     print(path[0])
-    shutil.copy(path[0],'data/ZiYueImg/')
+    try:
+        shutil.copy(path[0],'data/ZiYueImg/')
+    except:
+        path[0] = re.sub(r'Ori','Thumb',path[0])
+        path[0] = re.sub('.jpg','_0.jpg',path[0])
+        shutil.copy(path[0],'data/ZiYueImg/')
+        fileName[0] = re.sub('.jpg','_0.jpg',fileName[0])
     book = state['book']
     if book:
         conn = sqlite3.connect("data/ZiYue.db")
