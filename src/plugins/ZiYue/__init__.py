@@ -113,6 +113,6 @@ async def randomSen(event:MessageEvent,args: Message = CommandArg()):
     conn.commit()
     cur.close()
     if ".jpg" in s[2]:
-        await randomSentence.send(f"====={book} {s[1]}=====\n"+MessageSegment.image(f"data/ZiYueImg/{s[2]}")+f"\n==========\n上传人：{s[4]}\n收录时间：{t.tm_year}-{t.tm_mon}-{t.tm_mday} {t.tm_hour}:{t.tm_min}:{t.tm_sec}")
+        await randomSentence.send(f"==={book} {s[1]}===\n"+MessageSegment.image(f"data/ZiYueImg/{s[2]}")+f"\n==========\n上传人：{s[4]}\n收录时间：{t.tm_year}-{t.tm_mon}-{t.tm_mday} {t.tm_hour}:{t.tm_min}:{t.tm_sec}")
     else:
-        await randomSentence.send(f"====={book} {s[1]}=====\n{s[2]}\n==========\n上传人：{s[4]}\n收录时间：{t.tm_year}-{t.tm_mon}-{t.tm_mday} {t.tm_hour}:{t.tm_min}:{t.tm_sec}")
+        await randomSentence.send(f"==={book} {s[1]}===\n{s[2]}\n==========\n上传人：{s[4]}\n收录时间：{t.tm_year}-{t.tm_mon}-{t.tm_mday} {t.tm_hour}:{t.tm_min}:{t.tm_sec}")
