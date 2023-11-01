@@ -1,8 +1,8 @@
 from nonebot import on_message
 from nonebot.rule import to_me
-from nonebot.adapters.red import Bot,Message,MessageEvent
+from nonebot.adapters.red import Bot,MessageEvent,Message
 from nonebot.adapters.red.message import MessageSegment
-
+from nonebot.adapters.red.api.model import Message as MessageModel
 import re,os,random
 
 
@@ -43,9 +43,15 @@ def GPTchat(history:str):
     text = reply_process(text)
     print(text)
     return text
+async def askReplyMsg(bot:Bot,event:MessageEvent):
+    ml = await Message(bot.get_history_messages(event.chatType,event.scene,event.msgId,50))
+    print(ml)
+    for m in ml['msgList']:
+        if m['msgId'] == event.reply.replayMsgId:
+            return m
 
 @ask.handle()
-async def askGPT(event:MessageEvent):
+async def askGPT(bot:Bot,event:MessageEvent):
     group_id = int(event.scene)
     if group_id not in groups:
         group_init(group_id,groups)
@@ -54,11 +60,18 @@ async def askGPT(event:MessageEvent):
     msg = msg.replace(" ","")
     if (groups[group_id]["msgQueue"][-1]!=msg):
         groups[group_id]["msgQueue"] = msgQueueInput(groups[group_id]["msgQueue"],msg)
+    if event.reply:
+        text = ''
+        for e in event.records[0].elements:
+            if e.textElement:
+                text+=e.textElement.content
+        groups[group_id]["msgQueue"][-1] = text
+        groups[group_id]["msgQueue"] = msgQueueInput(groups[group_id]["msgQueue"],msg)
+        history = " ".join(groups[group_id]["msgQueue"])
     history = " ".join(groups[group_id]["msgQueue"])
     ans = GPTchat(history)
-    # await Bot.send_group_message(Bot,int(group_id),message=f'[CQ:reply,id:{event.msgId}]'+ans)
+    # await bot.send_group_message(Bot,int(group_id),message=f'[CQ:reply,id:{event.msgId}]'+ans)
     groups[group_id]["msgQueue"] = msgQueueInput(groups[group_id]["msgQueue"],ans)
-    Bot.send_group_message(Bot,int(group_id),message=MessageSegment.reply(ans,message_id=event.msgId,sender_uin=group_id)+MessageSegment.at(event.get_user_id())+' '+ans)
     if ans == "？":
         ans = GPTchat(history)
         groups[group_id]["msgQueue"] = msgQueueInput(groups[group_id]["msgQueue"],ans)
@@ -71,7 +84,7 @@ async def askGPT(event:MessageEvent):
 
 
 @g_message.handle()
-async def g_m(event:MessageEvent):
+async def g_m(bot:Bot,event:MessageEvent):
     group_id = int(event.scene)
     if group_id not in groups:
         group_init(group_id,groups)
@@ -89,7 +102,7 @@ async def g_m(event:MessageEvent):
         print(history)
         ans = GPTchat(history)
         groups[group_id]["msgQueue"] = msgQueueInput(groups[group_id]["msgQueue"],ans)
-        Bot.send_group_message(Bot,int(group_id),ans)
+        # await bot.send_group_message(Bot,int(group_id),ans)
         if ans == "？":
             ans = GPTchat(history)
             groups[group_id]["msgQueue"] = msgQueueInput(groups[group_id]["msgQueue"],ans)
