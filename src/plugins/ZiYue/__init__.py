@@ -70,7 +70,7 @@ async def newSentence(event:MessageEvent,args:Message=CommandArg()):
         pass
     else:
         await newSen.finish("未选择语录")
-    text = ''
+    text = content = ''
     for e in event.records[0].elements:
         if e.picElement:
             md5 = e.picElement.md5HexStr
@@ -79,7 +79,7 @@ async def newSentence(event:MessageEvent,args:Message=CommandArg()):
         else:
             if e.textElement:
                 text += e.textElement.content
-    if text!='':
+    if content=='':
         content = text
     conn = sqlite3.connect("data/ZiYue.db")
     cur = conn.cursor()
