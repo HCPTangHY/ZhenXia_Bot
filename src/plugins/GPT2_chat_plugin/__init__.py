@@ -70,7 +70,7 @@ async def askGPT(bot:Bot,event:MessageEvent):
         history = " ".join(groups[group_id]["msgQueue"])
     history = " ".join(groups[group_id]["msgQueue"])
     ans = GPTchat(history)
-    # await bot.send_group_message(Bot,int(group_id),message=f'[CQ:reply,id:{event.msgId}]'+ans)
+    await bot.send_group_message(group_id,MessageSegment.reply(ans,message_id=event.msgId,sender_uin=group_id)+MessageSegment.at(event.get_user_id())+' '+ans)
     groups[group_id]["msgQueue"] = msgQueueInput(groups[group_id]["msgQueue"],ans)
     if ans == "？":
         ans = GPTchat(history)
@@ -78,7 +78,7 @@ async def askGPT(bot:Bot,event:MessageEvent):
         if ans != '？':
             await ask.reject(ans)
         else:
-            await ask.reject("?")
+            await ask.reject()
     else:
         await ask.reject(MessageSegment.reply(ans,message_id=event.msgId,sender_uin=group_id)+MessageSegment.at(event.get_user_id())+' '+ans)
 
@@ -102,13 +102,11 @@ async def g_m(bot:Bot,event:MessageEvent):
         print(history)
         ans = GPTchat(history)
         groups[group_id]["msgQueue"] = msgQueueInput(groups[group_id]["msgQueue"],ans)
-        # await bot.send_group_message(Bot,int(group_id),ans)
+        await bot.send_group_message(int(group_id),ans)
         if ans == "？":
             ans = GPTchat(history)
             groups[group_id]["msgQueue"] = msgQueueInput(groups[group_id]["msgQueue"],ans)
             if ans != '？':
-                await ask.reject(ans)
-            else:
-                await ask.reject("?")
+                await ask.send(ans)
         else:
             await ask.send(ans)
