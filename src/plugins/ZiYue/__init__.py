@@ -1,10 +1,7 @@
-from nonebot import on_message,on_command
-from nonebot.rule import to_me,command
-from nonebot.params import Arg,CommandArg
+from nonebot import on_command
+from nonebot.params import CommandArg
 from nonebot.matcher import Matcher
-from nonebot.typing import T_State
-from nonebot.adapters import MessageTemplate
-from nonebot.adapters.red import Bot,Message,MessageEvent
+from nonebot.adapters.red import Message,MessageEvent
 from nonebot.adapters.red.message import MessageSegment
 
 import sqlite3,time,re,random,requests,urllib3

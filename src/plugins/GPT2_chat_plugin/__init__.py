@@ -2,7 +2,6 @@ from nonebot import on_message
 from nonebot.rule import to_me
 from nonebot.adapters.red import Bot,MessageEvent,Message
 from nonebot.adapters.red.message import MessageSegment
-from nonebot.adapters.red.api.model import Message as MessageModel
 import re,os,random
 
 
@@ -10,7 +9,6 @@ models = ["枕小霞2.0","枕小霞1.6","文和武乱1.0","东方1.0","大明王
 modelPath = ["model/ZX2.0","model/ZX1.6","model/whwl1.0","model/TH1.0","model/1566","model/sf1.0"]
 
 ask = on_message(rule=to_me())
-g_message = on_message(priority=100)
 
 modelUsing = models[0]
 modelUsing = models[0]
@@ -70,7 +68,7 @@ async def askGPT(bot:Bot,event:MessageEvent):
         history = " ".join(groups[group_id]["msgQueue"])
     history = " ".join(groups[group_id]["msgQueue"])
     ans = GPTchat(history)
-    await bot.send_group_message(group_id,MessageSegment.reply(ans,message_id=event.msgId,sender_uin=group_id)+MessageSegment.at(event.get_user_id())+' '+ans)
+    await bot.send(event,MessageSegment.reply(event.msgSeq,sender_uin=event.senderUin)+MessageSegment.at(event.get_user_id())+' '+ans)
     groups[group_id]["msgQueue"] = msgQueueInput(groups[group_id]["msgQueue"],ans)
     if ans == "？":
         ans = GPTchat(history)
@@ -79,10 +77,8 @@ async def askGPT(bot:Bot,event:MessageEvent):
             await ask.reject(ans)
         else:
             await ask.reject()
-    else:
-        await ask.reject(MessageSegment.reply(ans,message_id=event.msgId,sender_uin=group_id)+MessageSegment.at(event.get_user_id())+' '+ans)
 
-
+g_message = on_message(priority=100)
 @g_message.handle()
 async def g_m(bot:Bot,event:MessageEvent):
     group_id = int(event.scene)
@@ -102,11 +98,9 @@ async def g_m(bot:Bot,event:MessageEvent):
         print(history)
         ans = GPTchat(history)
         groups[group_id]["msgQueue"] = msgQueueInput(groups[group_id]["msgQueue"],ans)
-        await bot.send_group_message(int(group_id),ans)
+        await bot.send_message(event.chatType,event.peerUid,ans)
         if ans == "？":
             ans = GPTchat(history)
             groups[group_id]["msgQueue"] = msgQueueInput(groups[group_id]["msgQueue"],ans)
             if ans != '？':
                 await ask.send(ans)
-        else:
-            await ask.send(ans)
