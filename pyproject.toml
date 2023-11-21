@@ -11,6 +11,6 @@ adapters = [
 
     {name = "Red", module_name = "nonebot.adapters.red"}
 ]
-plugins = ["nonebot_plugin_wordle", "nonebot_plugin_alconna"]
+plugins = ["nonebot_plugin_alconna"]
 plugin_dirs = ["src/plugins"]
 builtin_plugins = ["echo", "single_session"]

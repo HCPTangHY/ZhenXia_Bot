@@ -4,20 +4,27 @@ from nonebot.matcher import Matcher
 from nonebot.adapters.red import Message,MessageEvent
 from nonebot.adapters.red.message import MessageSegment
 
-import sqlite3,time,re,random,requests,urllib3
+import sqlite3,time,re,random,requests,urllib3,os
 
 async def stdSentenceOut(matcher:Matcher,data:tuple,bookName):
     t = time.localtime(data[5])
     if "[IMG:" in data[2]:
         md5 = re.findall(r'\[IMG:(.*?)\]', data[2])[0].upper()
         image_url= "https://gchat.qpic.cn/gchatpic_new/0/0-0-"+md5+'/0?term=2&amp;is_origin=0'
-
         proxies = {"http": "http://127.0.0.1:7890","https": "http://127.0.0.1:7890",}
         urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-        res = requests.get(image_url,verify=False,proxies=proxies)
+        try:
+            res = requests.get(image_url,verify=False,proxies=proxies)
+        except:
+            res = requests.get(image_url,verify=False)
         with open('data/ZiYueImg/0.gif', 'wb') as f:
             f.write(res.content)
-        await matcher.send(f"==={bookName} {data[1]}===\n"+MessageSegment.image('data/ZiYueImg/0.gif')+f"\n==========\n上传人：{data[4]}\n收录时间：{t.tm_year}-{t.tm_mon}-{t.tm_mday} {t.tm_hour}:{t.tm_min}:{t.tm_sec}")
+        file = 'data/ZiYueImg/0.gif'
+        if not os.path.getsize('data/ZiYueImg/0.gif'):
+            with open('data/ZiYueImg/0.jpg', 'wb') as f:
+                f.write(res.content)
+            file = 'data/ZiYueImg/0.jpg'
+        await matcher.send(f"==={bookName} {data[1]}===\n"+MessageSegment.image(file)+f"\n==========\n上传人：{data[4]}\n收录时间：{t.tm_year}-{t.tm_mon}-{t.tm_mday} {t.tm_hour}:{t.tm_min}:{t.tm_sec}")
     else:
         await matcher.send(f"==={bookName} {data[1]}===\n{data[2]}\n==========\n上传人：{data[4]}\n收录时间：{t.tm_year}-{t.tm_mon}-{t.tm_mday} {t.tm_hour}:{t.tm_min}:{t.tm_sec}")
 
@@ -25,13 +32,20 @@ async def stdEchoOut(matcher:Matcher,data:tuple,):
     if "[IMG:" in data[1]:
         md5 = re.findall(r'\[IMG:(.*?)\]', data[1])[0].upper()
         image_url= "https://gchat.qpic.cn/gchatpic_new/0/0-0-"+md5+'/0?term=2&amp;is_origin=0'
-
         proxies = {"http": "http://127.0.0.1:7890","https": "http://127.0.0.1:7890",}
         urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-        res = requests.get(image_url,verify=False,proxies=proxies)
+        try:
+            res = requests.get(image_url,verify=False,proxies=proxies)
+        except:
+            res = requests.get(image_url,verify=False)
         with open('data/ZiYueImg/0.gif', 'wb') as f:
             f.write(res.content)
-        await matcher.send(f"===回声洞 {data[0]}===\n"+MessageSegment.image('data/ZiYueImg/0.gif'))
+        file = 'data/ZiYueImg/0.gif'
+        if not os.path.getsize('data/ZiYueImg/0.gif'):
+            with open('data/ZiYueImg/0.jpg', 'wb') as f:
+                f.write(res.content)
+            file = 'data/ZiYueImg/0.jpg'
+        await matcher.send(f"===回声洞 {data[0]}===\n"+MessageSegment.image(file))
     else:
         await matcher.send(f"===回声洞 {data[0]}===\n{data[1]}\n")
 
@@ -173,7 +187,7 @@ async def newEchoUpdate(event:MessageEvent,args:Message=CommandArg()):
         if id<=item[0]:
             id = item[0]+1
         if item[1]==content:
-            newEcho.finish(MessageSegment.at(event.get_user_id())+"小笨蛋，已经有相同回声了哦！")
+            await newEcho.finish(MessageSegment.at(event.get_user_id())+"小笨蛋，已经有相同回声了哦！")
     cur.execute(
         f"insert into echo(id,content,updated_at) values({id},'{content}',{time.time()});"
     )
