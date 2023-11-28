@@ -25,6 +25,8 @@ async def move_action(event:Event):
     else:
         for e in events:
             if e['session']==event.get_session_id():await moveAction.finish("你有一个事件待处理！")
+        if u.state==monoUserState.cityJailed or u.state==monoUserState.illegalJailed:
+            await moveAction.finish("你正被囚禁！")
         p = u.move()
         if not p:
             await moveAction.finish("你没钱啦！赚点钱再移动吧")
@@ -36,7 +38,8 @@ async def move_action(event:Event):
                 if r==1:e = monoEventBlackMarket(event,u)
                 elif r==2:e = monoEventSecretMoney(event,u)
                 elif r==3:e = monoEventLewdWordle(event,u)
-                else:e = monoEventLootWordle(event,u)
+                elif r==4:e = monoEventLootWordle(event,u)
+                elif r==5:e = monoEventPatrol(event,u)
                 events.append({"session":event.get_session_id(),"event":e})
                 eventText = e.preText
             crime = ''
@@ -44,7 +47,7 @@ async def move_action(event:Event):
             elif int(u.crime)==3:crime = '\n执法者正盯着你'
             elif int(u.crime)==4:crime = '\n执法者正在找你！'
             elif int(u.crime)>=5:crime = '\n执法者决定逮捕你！'
-            await moveAction.finish(f"你花了2火币来移动，来到了{p.chunkName}"+crime+MessageSegment.image('data/map.png')+eventText)
+            await moveAction.finish(MessageSegment.at(event.get_user_id())+f"\n你花了2火币来移动，来到了{p.chunkName}"+crime+MessageSegment.image('data/map.png')+eventText)
 
 exitCity = on_command("出城",priority=10,block=True)
 @exitCity.handle()
@@ -83,12 +86,15 @@ async def ask_where(event:Event):
         await askWhere.finish("你还没注册呢！发送注册来让小霞认识一下你吧！")
     else:
         monoGroup(gid).draw_map()
+        state = f"你正走在{u.position.chunkName}上"
+        if u.state==monoUserState.cityJailed or u.state==monoUserState.illegalJailed:
+            state = '你正被囚禁！'
         crime = ''
         if int(u.crime)==2:crime = '\n执法者觉得你很面熟……'
         elif int(u.crime)==3:crime = '\n执法者正盯着你'
         elif int(u.crime)==4:crime = '\n执法者正在找你！'
         elif int(u.crime)>=5:crime = '\n执法者决定逮捕你！'
-        await askWhere.finish(f"你正走在{u.position.chunkName}上"+crime+MessageSegment.image('data/map.png'))
+        await askWhere.finish(state+crime+MessageSegment.image('data/map.png'))
 
 lootUser = on_command("打劫",aliases={'loot'},priority=10,block=True)
 @lootUser.handle()
@@ -100,11 +106,15 @@ async def loot_user(event:Event):
     if not u:
         await askWhere.finish("你还没注册呢！发送注册来让小霞认识一下你吧！")
     else:
-        if u.position.cid != target.position.cid:
-            await askWhere.finish("你们不在同一个地方！没法打劫Ta！")
         if not target:
             await askWhere.finish("对方还没注册呢！让Ta发送注册来让小霞认识一下吧！")
         else:
+            if u.state==monoUserState.cityJailed or u.state==monoUserState.illegalJailed:
+                await askWhere.finish("你正被囚禁！")
+            if target.state==monoUserState.cityJailed or target.state==monoUserState.illegalJailed:
+                await askWhere.finish("对方银行账户异常！")
+            if u.position.cid != target.position.cid:
+                await askWhere.finish("你们不在同一个地方！没法打劫Ta！")
             if u.money<10:
                 await moveAction.finish("你没钱啦！付不起打劫的成本！")
             else:
@@ -178,7 +188,7 @@ async def Ex(event:Event):
 
 def game_running(event: Event) -> bool:
     for wd in wordles:
-        if wd['session']==event.get_session_id():
+        if wd['session'].split("_")[0]==event.get_session_id().split("_")[0]:
             return True
     return False
 def get_word_input(msg: str = EventPlainText()) -> bool:
@@ -188,44 +198,54 @@ def get_word_input(msg: str = EventPlainText()) -> bool:
 wordMatcher = on_message(Rule(game_running) & get_word_input, block=True, priority=12)
 @wordMatcher.handle()
 async def _(event: Event):
-    for i in range(len(wordles)):
-        if wordles[i]['session']==event.get_session_id():
-            gid = event.get_session_id().split("_")[0]
+    for w in wordles:
+        gid = event.get_session_id().split("_")[0]
+        uid = event.get_user_id()
+        if gid==w['session'].split("_")[0]:
             user = monoGroup(gid).find_user(event.get_user_id())
-            if wordles[i]['from']=='explore':state,e = wordle_battle(explore,event,user)
-            elif wordles[i]['from']=='event':state,e = wordle_battle(moveAction,event,user)
-            if state==GuessResult.WIN or state==GuessResult.LOSS:
-                if wordles[i]['from']=='explore':
-                    if state==GuessResult.LOSS:
-                        user.add_money(-e.object.length+2)
-                        wordles.pop(i)
-                        await explore.finish(MessageSegment.image(e.object.draw())+MessageSegment.at(event.get_user_id())+f'\n{e.object.result}\n你被{e.type}沃兜打败了，它抢走了你的{e.object.length-2}火币！')
-                    elif state==GuessResult.WIN:
-                        money = e.object.length-len(e.object.guessed_words)+3
-                        wordles.pop(i)
-                        user.add_money(money)
-                        await explore.finish(MessageSegment.image(e.object.draw())+MessageSegment.at(event.get_user_id())+f'\n{e.object.result}\n战斗胜利！获得{money}火币！')
-                elif wordles[i]['from']=='event':
-                    for e in events:
-                        if e['session']==event.get_session_id():
-                            eObj = e['event']
-                            postText = eObj.end(state)
-                            events.pop(events.index(e))
-                            await moveAction.finish(postText)
+            if uid==w['session'].split("_")[1]:
+                if w['from']=='explore':state,e = wordle_battle(explore,event,user,w['enermy'])
+                elif w['from']=='event':state,e = wordle_battle(moveAction,event,user,w['enermy'])
             else:
-                if state=='noHint':
-                    await explore.send(MessageSegment.at(event.get_user_id())+"\n你还没有猜对过一个字母哦~再猜猜吧~")
-                elif state=='hint':
-                    hint = e.object.get_hint()
-                    await explore.send(MessageSegment.image(e.object.draw_hint(hint))+MessageSegment.at(event.get_user_id()))
-                elif state=='noLength':
-                    pass
-                elif state==GuessResult.DUPLICATE:
-                    await explore.send(MessageSegment.at(event.get_user_id())+"\n你已经猜过这个单词了呢")
-                elif state==GuessResult.ILLEGAL:
-                    await explore.send(MessageSegment.at(event.get_user_id())+f"\n你确定 {event.get_plaintext()} 是一个合法的单词吗？")
+                if w['from']=='event':
+                    state,e = wordle_battle(moveAction,event,user,w['enermy'])
+                    e.participate.append(user)
+                    wordles[wordles.index(w)]['enermy'] = e
                 else:
-                    await explore.send(MessageSegment.image(e.object.draw())+MessageSegment.at(event.get_user_id()))
+                    state,e = 0,0
+            if state != 0 and e!=0:
+                if state==GuessResult.WIN or state==GuessResult.LOSS:
+                    wordles.pop(wordles.index(w))
+                    if w['from']=='explore':
+                        if state==GuessResult.LOSS:
+                            user.add_money(-e.object.length+2)
+                            await explore.finish(MessageSegment.image(e.object.draw())+MessageSegment.at(event.get_user_id())+f'\n{e.object.result}\n你被{e.type}沃兜打败了，它抢走了你的{e.object.length-2}火币！')
+                        elif state==GuessResult.WIN:
+                            money = e.object.length-len(e.object.guessed_words)+3
+                            user.add_money(money)
+                            await explore.finish(MessageSegment.image(e.object.draw())+MessageSegment.at(event.get_user_id())+f'\n{e.object.result}\n战斗胜利！获得{money}火币！')
+                    elif w['from']=='event':
+                        for et in events:
+                            if gid==et['session'].split("_")[0]:
+                                eObj = et['event']
+                                postText = eObj.end(state,e)
+                                events.pop(events.index(et))
+                                await moveAction.finish(MessageSegment.at(et['session'].split("_")[1])+postText)
+                else:
+                    if state=='noHint':
+                        await explore.send(MessageSegment.at(event.get_user_id())+"\n你还没有猜对过一个字母哦~再猜猜吧~")
+                    elif state=='hint':
+                        hint = e.object.get_hint()
+                        await explore.send(MessageSegment.image(e.object.draw_hint(hint))+MessageSegment.at(event.get_user_id()))
+                    elif state=='noLength':
+                        pass
+                    elif state==GuessResult.DUPLICATE:
+                        await explore.send(MessageSegment.at(event.get_user_id())+"\n你已经猜过这个单词了呢")
+                    elif state==GuessResult.ILLEGAL:
+                        await explore.send(MessageSegment.at(event.get_user_id())+f"\n你确定 {event.get_plaintext()} 是一个合法的单词吗？")
+                    else:
+                        await explore.send(MessageSegment.image(e.object.draw())+MessageSegment.at(event.get_user_id()))
+            break
 def event_running(event: Event) -> bool:
     for e in events:
         if e['session']==event.get_session_id():
@@ -247,7 +267,7 @@ async def _(event: Event):
             findW = False
             for w in wordles:
                 if w['session']==event.get_session_id():
-                    findW==True
+                    findW=True
             if not findW:
                 events.pop(i)
-            await eventMatcher.send(postText)
+            await eventMatcher.send(MessageSegment.at(event.get_user_id())+"\n"+postText)

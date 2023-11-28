@@ -1,9 +1,9 @@
 from nonebot import on_message,on_command
 from nonebot.rule import to_me
 from nonebot.params import CommandArg
-from nonebot.adapters.red import Bot,MessageEvent,Message
+from nonebot.adapters.red import Bot,GroupMessageEvent,MessageEvent,Message
 from nonebot.adapters.red.message import MessageSegment
-import re,os,random,time,numpy,subprocess
+import re,os,random,time,numpy,jieba
 
 
 models = ["枕小霞2.1","枕小霞1.6","文和武乱1.0","大明王朝2.0","50W语料","贴吧300W","微博450W"]
@@ -30,27 +30,27 @@ def reply_process(text:str):
             return text
         else:
             ans = text.split("，")
-            ans = numpy.unique(ans).tolist()
+            ans:list = numpy.unique(ans).tolist()
             return ans
     else:
         if text == '':text = '？？'
         return text
 def msgQueueInput(msgQueue : list,msg : str):
     msgQueue.append(msg)
-    if len(msgQueue)>8:
+    if len(msgQueue)>15:
         msgQueue.pop(0)
     return msgQueue
 def GPTchat(history:str):
     path = modelPath[models.index(modelUsing)]
     print(history)
-    p = subprocess.Popen('cd ./GPT2_chitchat && python -i interact.py --model_path {} --max_history_len 7 --one_ans True --history {}'.format(path,history),shell=True,stdout=subprocess.PIPE)
-    text = p.stdout.readline().decode('gbk')
+    content = os.popen('cd ./GPT2_chitchat && python interact.py --model_path {} --max_history_len 15 --one_ans True --history {}'.format(path,history))
+    text = content.read()
     text = reply_process(text)
     print(text)
     return text
-ask = on_message(rule=to_me())
+ask = on_message(rule=to_me(),priority=20,block=True)
 @ask.handle()
-async def askGPT(bot:Bot,event:MessageEvent):
+async def askGPT(event:GroupMessageEvent):
     group_id = int(event.scene)
     if group_id not in groups:
         group_init(group_id,groups)
@@ -72,30 +72,14 @@ async def askGPT(bot:Bot,event:MessageEvent):
         groups[group_id]["msgQueue"] = msgQueueInput(groups[group_id]["msgQueue"],' '.join(ans))
         for i in range(len(ans)):
             if i == 0:
-                await bot.send(event,MessageSegment.reply(event.msgSeq,sender_uin=event.senderUin)+MessageSegment.at(event.get_user_id())+' '+ans[i])
+                await ask.send(MessageSegment.reply(event.msgSeq,sender_uin=event.senderUin)+MessageSegment.at(event.get_user_id())+' '+ans[i])
             else:
-                await bot.send(event,ans[i])
+                await ask.send(ans[i])
             time.sleep(0.35)
     elif isinstance(ans,str):
         groups[group_id]["msgQueue"] = msgQueueInput(groups[group_id]["msgQueue"],ans)
-        await bot.send(event,MessageSegment.reply(event.msgSeq,sender_uin=event.senderUin)+MessageSegment.at(event.get_user_id())+' '+ans)
-    if ans == "？":
-        history+=' ？'
-        ans = GPTchat(history)
-        if ans != '？':
-            if isinstance(ans,str):
-                groups[group_id]["msgQueue"] = msgQueueInput(groups[group_id]["msgQueue"],ans)
-                await bot.send(event,ans)
-            elif isinstance(ans,list):
-                groups[group_id]["msgQueue"] = msgQueueInput(groups[group_id]["msgQueue"],"".join(ans))
-                for i in range(len(ans)):
-                    await bot.send(event,ans[i])
-                    time.sleep(0.35)
-            await ask.reject()
-        else:
-            await ask.reject()
-    else:
-        await ask.reject()
+        await ask.send(MessageSegment.reply(event.msgSeq,sender_uin=event.senderUin)+MessageSegment.at(event.get_user_id())+' '+ans)
+    await ask.finish()
 
 change_model = on_command("切换模型",aliases={"changeModel"},priority=10,block=True)
 @change_model.handle()
@@ -116,42 +100,52 @@ async def modelList():
 
 g_message = on_message(priority=100)
 @g_message.handle()
-async def g_m(bot:Bot,event:MessageEvent):
+async def g_m(event:MessageEvent):
     group_id = int(event.scene)
     if group_id not in groups:
         group_init(group_id,groups)
     if (groups[group_id]["lastMsg"] == event.message and groups[group_id]['reMsg'] != event.message):
         groups[group_id]['reMsg'] = event.message
-        await ask.send(event.message)
-    if "明" in event.message.extract_plain_text():
-        await ask.send("嘘！不准说「明」，你说「明」，你就咔嚓")
+        await ask.finish(event.message)
+    if ('吃什么' in event.get_plaintext()) :
+        with open(file='data/foods.txt',encoding="utf-8",mode="r") as f:
+            foods = f.read().split('\n')
+        await ask.finish(random.choice(foods))
+    if random.random()<0.01:
+        l = jieba.lcut(event.get_plaintext())
+        with open(file='data/stopwords.txt',encoding="utf-8",mode="r") as f:
+            stopwords = f.read().split('\n')
+        l = [i for i in l if not i in stopwords]
+        word = random.choice(l)
+        await ask.finish(f"好！多说「{word}」，你说「{word}」，你就好！")
     msg = event.message.extract_plain_text()
     msg = msg.strip()
     msg = msg.replace(" ","")
     if (msg != '') and ('[CQ:' not in msg) and ('/' not in msg) and ('wordle' not in msg):
         groups[group_id]["msgQueue"] = msgQueueInput(groups[group_id]["msgQueue"],msg)
     groups[group_id]["lastMsg"] = event.message
-    if random.random()<0.1:
+    if random.random()<0.175:
         history = " ".join(groups[group_id]["msgQueue"])
         print(history)
         ans = GPTchat(history)
-        if isinstance(ans,str):
-            groups[group_id]["msgQueue"] = msgQueueInput(groups[group_id]["msgQueue"],ans)
-            await bot.send(event,ans)
-        elif isinstance(ans,list):
-            groups[group_id]["msgQueue"] = msgQueueInput(groups[group_id]["msgQueue"],"".join(ans))
+        if isinstance(ans,list):
+            groups[group_id]["msgQueue"] = msgQueueInput(groups[group_id]["msgQueue"],"，".join(ans))
             for i in range(len(ans)):
-                await bot.send(event,ans[i])
+                await g_message.send(ans[i])
                 time.sleep(0.35)
-        if ans == "？":
-            history+=' ？'
-            ans = GPTchat(history)
-            if ans != '？':
-                if isinstance(ans,str):
-                    groups[group_id]["msgQueue"] = msgQueueInput(groups[group_id]["msgQueue"],ans)
-                    await bot.send(event,ans)
-                elif isinstance(ans,list):
-                    groups[group_id]["msgQueue"] = msgQueueInput(groups[group_id]["msgQueue"],"".join(ans))
-                    for i in range(len(ans)):
-                        await bot.send(event,ans[i])
-                        time.sleep(0.35)
+        elif isinstance(ans,str):
+            groups[group_id]["msgQueue"] = msgQueueInput(groups[group_id]["msgQueue"],"".join(ans))
+            await g_message.send(ans)
+            if ans == "？":
+                history+=' ？'
+                ans = GPTchat(history)
+                if ans != '？':
+                    if isinstance(ans,str):
+                        groups[group_id]["msgQueue"] = msgQueueInput(groups[group_id]["msgQueue"],"，".join(ans))
+                        await g_message.send(ans)
+                    elif isinstance(ans,list):
+                        groups[group_id]["msgQueue"] = msgQueueInput(groups[group_id]["msgQueue"],"".join(ans))
+                        for i in range(len(ans)):
+                            await g_message.send(ans[i])
+                            time.sleep(0.35)
+    await g_message.finish()

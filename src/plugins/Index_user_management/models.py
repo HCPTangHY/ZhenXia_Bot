@@ -1,7 +1,6 @@
 import os,sqlite3
 
 class Group:
-    gid = -1
     def __init__(self,gid) -> None:
         self.gid = gid
         if not os.path.exists('data/INDEX'):
@@ -13,7 +12,7 @@ class Group:
         cur.close()
 
     def new_user(self,qid,nickname):
-        if self.findUser(qid):
+        if self.find_user_by_qid(qid):
             return False
         conn = sqlite3.connect(f"data/INDEX/{self.gid}.db")
         cur = conn.cursor()
@@ -28,7 +27,7 @@ class Group:
         conn.commit()
         cur.close()
 
-    def find_user(self,qid):
+    def find_user_by_qid(self,qid):
         conn = sqlite3.connect(f"data/INDEX/{self.gid}.db")
         cur = conn.cursor()
         data = cur.execute(f"select * from user where qid='{qid}';").fetchall()
@@ -38,12 +37,27 @@ class Group:
         else:
             u = User(self)
             u.uid = data[0][0]
+            u.qid = data[0][1]
+            u.nickname = data[0][2]
+            u.money = data[0][3]
+            return u
+    def find_user_by_uid(self,id):
+        conn = sqlite3.connect(f"data/INDEX/{self.gid}.db")
+        cur = conn.cursor()
+        data = cur.execute(f"select * from user where uid='{id}';").fetchall()
+        conn.close()
+        if len(data)==0:
+            return False
+        else:
+            u = User(self)
+            u.uid = data[0][0]
+            u.qid = data[0][1]
             u.nickname = data[0][2]
             u.money = data[0][3]
             return u
 
 class User:
-    uid = -1
+    uid = qid = -1
     nickname = ''
     money = -1
     def __init__(self,group:Group) -> None:
@@ -59,7 +73,6 @@ class User:
 
     def add_money(self,money):
         self.money += money
-        print(self.money)
         conn = sqlite3.connect(f"data/INDEX/{self.group.gid}.db")
         cur = conn.cursor()
         cur.execute(f"UPDATE user SET money={self.money} where uid='{self.uid}';")

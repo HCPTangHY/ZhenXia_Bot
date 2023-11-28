@@ -31,21 +31,20 @@ def set_timeout(matcher: Matcher,event, session: str, user:monoUser,timeout: flo
         timeout, lambda: asyncio.ensure_future(stop_game(matcher,event,session,user))
     )
     timers[session] = timer
-def wordle_battle(matcher:Matcher,event:Event,user:monoUser):
+def wordle_battle(matcher:Matcher,event:Event,user:monoUser,enermy:Enermy):
     set_timeout(matcher,event,event.get_session_id(),user)
-    for i in range(len(wordles)):
-        if wordles[i]['session']==event.get_session_id():
-            e:Enermy = wordles[i]['enermy']
+    for w in wordles:
+        if w['enermy']==enermy:
             word = event.get_plaintext()
             if '提示'==word:
-                hint = e.object.get_hint()
+                hint = enermy.object.get_hint()
                 if not hint.replace("*", ""):
-                    return 'noHint',e
-                else: return 'hint',e
+                    return 'noHint',enermy
+                else: return 'hint',enermy
             elif '投降'==word:
-                return GuessResult.LOSS,e
-            if len(word) != e.object.length:
-                return 'noLength',e
-            state = e.object.guess(word)
-            wordles[i]['enermy'] = e
-            return state,e
+                return GuessResult.LOSS,enermy
+            if len(word) != enermy.object.length:
+                return 'noLength',enermy
+            state = enermy.object.guess(word)
+            wordles[wordles.index(w)]['enermy'] = enermy
+    return state,enermy

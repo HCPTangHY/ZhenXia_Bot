@@ -1,293 +1,159 @@
 import asyncio
-import re
-import shlex
 from asyncio import TimerHandle
-from dataclasses import dataclass
-from io import BytesIO
-from typing import Dict, List, NoReturn, Optional
-
-from nonebot import on_command, on_message, on_shell_command, require
-from nonebot.adapters import Bot, Event, Message
-from nonebot.exception import ParserExit
+from typing import Dict
+from nonebot import require,on_message
+from nonebot.rule import Rule
 from nonebot.matcher import Matcher
-from nonebot.params import (
-    CommandArg,
-    CommandStart,
-    EventPlainText,
-    EventToMe,
-    ShellCommandArgv,
-)
-from nonebot.plugin import PluginMetadata
-from nonebot.rule import ArgumentParser, Rule
-from nonebot.typing import T_State
-from nonebot.permission import SUPERUSER
+from nonebot.adapters import Event
+from nonebot.params import EventPlainText
 
-require("nonebot_plugin_saa")
-require("nonebot_plugin_session")
 require("Index_user_management")
+require("nonebot_plugin_wordle")
 
-from nonebot_plugin_saa import Image, MessageFactory
-from nonebot_plugin_saa import __plugin_meta__ as saa_plugin_meta
-from nonebot_plugin_session import SessionIdType
-from nonebot_plugin_session import __plugin_meta__ as session_plugin_meta
-from nonebot_plugin_session import extract_session
+from nonebot_plugin_wordle import Wordle,GuessResult,random_word
 from ..Index_user_management import *
 
-assert saa_plugin_meta.supported_adapters
-assert session_plugin_meta.supported_adapters
-supported_adapters = (
-    saa_plugin_meta.supported_adapters & session_plugin_meta.supported_adapters
-)
+import re,random
 
-from .data_source import GuessResult, Wordle
-from .utils import dic_list, random_word
-
-__plugin_meta__ = PluginMetadata(
-    name="猜单词",
-    description="wordle猜单词游戏",
-    usage=(
-        "@我 + “猜单词”开始游戏；\n"
-        "答案为指定长度单词，发送对应长度单词即可；\n"
-        "绿色块代表此单词中有此字母且位置正确；\n"
-        "黄色块代表此单词中有此字母，但该字母所处位置不对；\n"
-        "灰色块代表此单词中没有此字母；\n"
-        "猜出单词或用光次数则游戏结束；\n"
-        "发送“结束”结束游戏；发送“提示”查看提示；\n"
-        "可使用 -l/--length 指定单词长度，默认为5；\n"
-        "可使用 -d/--dic 指定词典，默认为CET4\n"
-        f"支持的词典：{'、'.join(dic_list)}"
-    ),
-    type="application",
-    homepage="https://github.com/noneplugin/nonebot-plugin-wordle",
-    supported_adapters=supported_adapters,
-    extra={
-        "unique_name": "wordle",
-        "example": "@小Q 猜单词\nwordle -l 6 -d CET6",
-        "author": "meetwq <meetwq@gmail.com>",
-        "version": "0.3.3",
-    },
-)
-
-
-parser = ArgumentParser("wordle", description="猜单词")
-parser.add_argument("-l", "--length", type=int, default=6, help="单词长度")
-parser.add_argument("-d", "--dic", default="CET6", help="词典")
-parser.add_argument("--hint", action="store_true", help="提示")
-parser.add_argument("--stop", action="store_true", help="结束游戏")
-parser.add_argument("word", nargs="?", help="单词")
-
-
-@dataclass
-class Options:
-    length: int = 0
-    dic: str = ""
-    hint: bool = False
-    stop: bool = False
-    word: str = ""
-
-
-games: Dict[str, Wordle] = {}
+wordles = []
 timers: Dict[str, TimerHandle] = {}
+class Enermy():
+    def __init__(self,type,target:User,participate:list,object:Wordle) -> None:
+        self.type = type
+        self.target = target
+        self.participate:list = participate
+        self.object = object
+async def stop_game(matcher: Matcher, event:Event,session: str,user:User):
+    timers.pop(session, None)
+    gid = event.get_session_id().split("_")[0]
+    for i in range(len(wordles)):
+        if wordles[i]['session']==session:
+            e:Enermy = wordles[i]['enermy']
+            wordles.pop(i)
+            msg = "猜单词超时，游戏结束！"
+            moneyDesc = None
+            if len(e.object.guessed_words) >= 1:
+                dict = {}
+                for u in e.participate:
+                    dict[u] = dict.get(u, 0) + 1
+                for key,val in dict.items():
+                    money = (e.object.length-len(e.object.guessed_words)+5)*val/len(e.object.guessed_words)
+                    if key==e.participate[-1]:money*=2
+                    moneyDesc += MessageSegment.at(key)+f" 被抢走{-round(money,2)}火币!\n"
+                    u = Group(gid).find_user_by_qid(key).add_money(money)
+                msg += f"\n{e.object.result}"
+            await matcher.finish(msg+"\n"+moneyDesc)
 
-wordle = on_shell_command("wordle",permission=SUPERUSER,parser=parser, block=True, priority=13)
-
-
-@wordle.handle()
-async def _(
-    bot: Bot,
-    matcher: Matcher,
-    event: Event,
-    argv: List[str] = ShellCommandArgv(),
-):
-    await handle_wordle(bot, matcher, event, argv)
-
-
-def get_cid(bot: Bot, event: Event):
-    return extract_session(bot, event).get_id(SessionIdType.GROUP)
-
-
-def game_running(bot: Bot, event: Event) -> bool:
-    cid = get_cid(bot, event)
-    return bool(games.get(cid, None))
-
-
-def get_word_input(state: T_State, msg: str = EventPlainText()) -> bool:
-    if re.fullmatch(r"^[a-zA-Z]{3,8}$", msg):
-        state["word"] = msg
-        return True
-    return False
-
-
-def shortcut(cmd: str, argv: List[str] = [], **kwargs):
-    command = on_command(cmd, **kwargs, block=True, priority=12)
-
-    @command.handle()
-    async def _(
-        bot: Bot,
-        matcher: Matcher,
-        event: Event,
-        msg: Message = CommandArg(),
-    ):
-        try:
-            args = shlex.split(msg.extract_plain_text().strip())
-        except:
-            args = []
-        await handle_wordle(bot, matcher, event, argv + args)
-
-
-# 命令前缀为空则需要to_me，否则不需要
-def smart_to_me(command_start: str = CommandStart(), to_me: bool = EventToMe()) -> bool:
-    return bool(command_start) or to_me
-
-
-shortcut("猜单词", ["--length", "6", "--dic", "CET6"], rule=smart_to_me)
-shortcut("提示", ["--hint"], aliases={"给个提示"}, rule=game_running)
-shortcut("结束", ["--stop"], aliases={"结束游戏", "停止游戏"}, rule=game_running)
-
-
-word_matcher = on_message(Rule(game_running) & get_word_input, block=True, priority=12)
-
-
-@word_matcher.handle()
-async def _(
-    bot: Bot,
-    matcher: Matcher,
-    event: Event,
-    state: T_State,
-):
-    word: str = state["word"]
-    await handle_wordle(bot, matcher, event, [word])
-
-
-async def stop_game(matcher: Matcher, cid: str):
-    timers.pop(cid, None)
-    if games.get(cid, None):
-        game = games.pop(cid)
-        msg = "猜单词超时，游戏结束"
-        if len(game.guessed_words) >= 1:
-            msg += f"\n{game.result}"
-        await matcher.finish(msg)
-
-
-def set_timeout(matcher: Matcher, cid: str, timeout: float = 300):
-    timer = timers.get(cid, None)
+def set_timeout(matcher: Matcher,event, session: str, user:User,timeout: float = 300):
+    timer = timers.get(session, None)
     if timer:
         timer.cancel()
     loop = asyncio.get_running_loop()
     timer = loop.call_later(
-        timeout, lambda: asyncio.ensure_future(stop_game(matcher, cid))
+        timeout, lambda: asyncio.ensure_future(stop_game(matcher,event,session,user))
     )
-    timers[cid] = timer
+    timers[session] = timer
+def wordle_battle(matcher:Matcher,event:Event,user:User,enermy:Enermy):
+    set_timeout(matcher,event,event.get_session_id(),user)
+    for w in wordles:
+        if w['enermy']==enermy:
+            word = event.get_plaintext()
+            if '提示'==word:
+                hint = enermy.object.get_hint()
+                if not hint.replace("*", ""):
+                    return 'noHint',enermy
+                else: return 'hint',enermy
+            elif '投降'==word:
+                return GuessResult.LOSS,enermy
+            if len(word) != enermy.object.length:
+                return 'noLength',enermy
+            state = enermy.object.guess(word)
+            wordles[wordles.index(w)]['enermy'] = enermy
+    return state,enermy
+def game_running(event: Event) -> bool:
+    for wd in wordles:
+        if wd['session'].split("_")[0]==event.get_session_id().split("_")[0]:
+            return True
+    return False
+def get_word_input(msg: str = EventPlainText()) -> bool:
+    if re.fullmatch(r"^[a-zA-Z]{3,8}$", msg) or msg=='投降' or msg=='提示':
+        return True
+    return False
 
-
-async def handle_wordle(
-    bot: Bot,
-    matcher: Matcher,
-    event: Event,
-    argv: List[str],
-):
-    async def send(
-        message: Optional[str] = None, image: Optional[BytesIO] = None
-    ) -> NoReturn:
-        if not (message or image):
-            await matcher.finish()
-
-        msg_builder = MessageFactory([])
-        if image:
-            msg_builder.append(Image(image))
-        if message:
-            if image:
-                message = "\n" + message
-            msg_builder.append(message)
-        await msg_builder.send()
-        await matcher.finish()
-
-    try:
-        args = parser.parse_args(argv)
-    except ParserExit as e:
-        if e.status == 0:
-            await send(__plugin_meta__.usage)
-        return
-
-    options = Options(**vars(args))
-
-    cid = get_cid(bot, event)
-    if not games.get(cid, None):
-        if options.word:
-            await send()
-
-        if options.word or options.stop or options.hint:
-            await send("没有正在进行的游戏")
-
-        if not (options.length and options.dic):
-            await send("请指定单词长度和词典")
-
-        if options.length < 3 or options.length > 8:
-            await send("单词长度应在3~8之间")
-
-        if options.dic not in dic_list:
-            await send("支持的词典：" + ", ".join(dic_list))
-
-        word, meaning = random_word(options.dic, options.length)
-        game = Wordle(word, meaning)
-        games[cid] = game
-        set_timeout(matcher, cid)
-
-        await send(f"你有{game.rows}次机会猜出单词，单词长度为{game.length}，请发送单词", game.draw())
-
-    if options.stop:
-        game = games.pop(cid)
-        msg = "游戏已结束"
-        if len(game.guessed_words) >= 1:
-            msg += f"\n{game.result}"
-        await send(msg)
-
-    game = games[cid]
-    set_timeout(matcher, cid)
-
-    if options.hint:
-        hint = game.get_hint()
-        if not hint.replace("*", ""):
-            await send("你还没有猜对过一个字母哦~再猜猜吧~")
-        await send(image=game.draw_hint(hint))
-
-    word = options.word
-    if not re.fullmatch(r"^[a-zA-Z]{3,8}$", word):
-        await send()
-    if len(word) != game.length:
-        await send("请发送正确长度的单词")
-
-    result = game.guess(word)
-    if result in [GuessResult.WIN, GuessResult.LOSS]:
-        games.pop(cid)
-        if result == GuessResult.WIN:
-            gid = event.get_session_id().split("_")[0]
-            plus = '金币+5'
-            if not Group(gid).findUser(event.get_user_id()):
-                plus = '你还没注册！没有金币哦'
-            else:
-                Group(gid).findUser(event.get_user_id()).addMoney(5)
-        await send(
-            ("恭喜你猜出了单词！"+plus if result == GuessResult.WIN else "很遗憾，没有人猜出来呢")
-            + f"\n{game.result}",
-            game.draw(),
-        )
-    elif result == GuessResult.DUPLICATE:
-        await send("你已经猜过这个单词了呢")
-    elif result == GuessResult.ILLEGAL:
-        await send(f"你确定 {word} 是一个合法的单词吗？")
+wordle = on_command("wordle",aliases={"沃兜"},priority=12,block=True)
+@wordle.handle()
+async def wordle_action(event:Event):
+    gid = event.get_session_id().split("_")[0]
+    u = Group(gid).find_user_by_qid(event.get_user_id())
+    if not u:
+        await wordle.finish("你还没注册呢！发送注册来让小霞认识一下你吧！")
     else:
-        await send(image=game.draw())
-
-scoreAB = {'e':12000,'t':9000,'ainos':8000,'h':6400,'r':6200,'d':4400,'l':4000,'u':3400,'cm':3000,'f':2500,'wy':2000,'gp':1700,'b':1600,'v':1200,'k':800,'q':500,'jx':400,'z':200}
-countScore = on_command("查询评分",priority=10,block=True)
-@countScore.handle()
-async def count_score(event:Event,args:Message=CommandArg()):
-    words = args.extract_plain_text().split(' ')
-    score = 0
-    for w in words:
-        for l in w:
-            for key in scoreAB:
-                if l in key:
-                    score+=scoreAB[key]
-    await countScore.finish(f'评分：{score}')
+        for w in wordles:
+            if w['session'].split("_")[0]==gid:
+                await wordle.finish("有一个沃兜在进行哦")
+        if random.random()<=0.2:
+            word,meaning = random_word("CET6",random.randint(4,7))
+            e = Enermy('精英',u,[],Wordle(word,meaning))
+            wordles.append({'session':event.get_session_id(),'enermy':e,'from':'explore'})
+            await wordle.finish(MessageSegment.image(e.object.draw())+f"\n你遇到了精英沃兜！\n你有{e.object.rows}次机会猜出单词，单词长度为{e.object.length}，请发送单词")
+        else:
+            word,meaning = random_word("CET4",random.choice([5,5,5,5,6]))
+            e = Enermy('野生',u,[],Wordle(word,meaning))
+            wordles.append({'session':event.get_session_id(),'enermy':e,'from':'explore'})
+            await wordle.finish(MessageSegment.image(e.object.draw())+f"\n你遇到了野生沃兜！\n你有{e.object.rows}次机会猜出单词，单词长度为{e.object.length}，请发送单词")
+wordMatcher = on_message(Rule(game_running) & get_word_input, block=True, priority=12)
+@wordMatcher.handle()
+async def _(event: Event):
+    gid = event.get_session_id().split("_")[0]
+    u = Group(gid).find_user_by_qid(event.get_user_id())
+    if not u:
+        await wordle.finish("你还没注册呢！发送注册来让小霞认识一下你吧！")
+    else:
+        for w in wordles:
+            gid = event.get_session_id().split("_")[0]
+            if gid==w['session'].split("_")[0]:
+                user = Group(gid).find_user_by_qid(event.get_user_id())
+                state,e = wordle_battle(wordle,event,user,w['enermy'])
+                if state==GuessResult.WIN or state==GuessResult.LOSS:
+                    e.participate.append(user.qid)
+                    wordles[wordles.index(w)]['enermy'] = e
+                    wordles.pop(wordles.index(w))
+                    if state==GuessResult.LOSS:
+                        dict = {}
+                        for u in e.participate:
+                            dict[u] = dict.get(u, 0) + 1
+                        moneyDesc = None
+                        for key,val in dict.items():
+                            money = (-e.object.length)*val/len(e.object.guessed_words)
+                            if key==e.participate[-1]:money*=2
+                            moneyDesc += MessageSegment.at(key)+f" 被抢走{-round(money,2)}火币!\n"
+                            u = Group(gid).find_user_by_qid(key).add_money(money)
+                        await wordle.finish(MessageSegment.image(e.object.draw())+f'\n{e.object.result}\n'+moneyDesc)
+                    elif state==GuessResult.WIN:
+                        dict = {}
+                        for u in e.participate:
+                            dict[u] = dict.get(u, 0) + 1
+                        moneyDesc = None
+                        for key,val in dict.items():
+                            money = (e.object.length-len(e.object.guessed_words)+5)*(val/len(e.object.guessed_words))
+                            if key==e.participate[-1]:money*=2
+                            moneyDesc += MessageSegment.at(key)+f" 获得{round(money,2)}火币!\n"
+                            u = Group(gid).find_user_by_qid(key).add_money(money)
+                        await wordle.finish(MessageSegment.image(e.object.draw())+f'\n{e.object.result}\n战斗胜利！\n'+moneyDesc)
+                else:
+                    if state=='noHint':
+                        await wordle.send("\n你还没有猜对过一个字母哦~再猜猜吧~")
+                    elif state=='hint':
+                        hint = e.object.get_hint()
+                        await wordle.send(MessageSegment.image(e.object.draw_hint(hint)))
+                    elif state=='noLength':
+                        pass
+                    elif state==GuessResult.DUPLICATE:
+                        await wordle.send("你已经猜过这个单词了呢")
+                    elif state==GuessResult.ILLEGAL:
+                        await wordle.send(f"你确定 {event.get_plaintext()} 是一个合法的单词吗？")
+                    else:
+                        e.participate.append(user.qid)
+                        wordles[wordles.index(w)]['enermy'] = e
+                        await wordle.send(MessageSegment.image(e.object.draw()))
+                break

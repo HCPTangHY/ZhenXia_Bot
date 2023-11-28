@@ -1,0 +1,19 @@
+{
+    "header":{
+            "From":"3652469329",
+            "To":"3046199658",
+            "Content-Type":"JSON",
+            "Authentification":"RvQdiRnJ3eosMBmL7NnL"
+        },
+    "body":{
+        "Action":"addMoney",
+        "content":{
+            "group_id":0,
+            "user_id":0,
+            "money":-1
+        }
+    },
+    "footer":{
+        "timestamp":1700788442
+    }
+}

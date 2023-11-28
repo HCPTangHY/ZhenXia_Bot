@@ -102,10 +102,12 @@ class monoGroup(Group):
                 findFalg=True
         if not findFalg:
             cur.execute("alter table user add column crime REAL")
-            data = cur.execute(f"select * from user;").fetchall()
-            for u in data:
-                if not u[4]:
-                    cur.execute(f"UPDATE user SET crime=0 where uid='{u[0]}';")
+        findFalg=False
+        for d in data:
+            if 'state'==d[1]:
+                findFalg=True
+        if not findFalg:
+            cur.execute("alter table user add column state INTEGER")
         data = cur.execute("PRAGMA table_info(map)").fetchall()
         if not data:
             cityHallKey = 0
@@ -130,6 +132,8 @@ class monoGroup(Group):
                 cur.execute(f"UPDATE user SET position={int(cityHallKey)} where uid='{d[0]}';")
             if not d[5]:
                 cur.execute(f"UPDATE user SET crime=0 where uid='{d[0]}';")
+            if not d[6]:
+                cur.execute(f"UPDATE user SET state=0 where uid='{d[0]}';")
         conn.commit()
         cur.close()
 
@@ -145,7 +149,7 @@ class monoGroup(Group):
             if id<=int(item[0]):
                 id = int(item[0])+1
         cur.execute(
-            f"insert into user(uid,qid,nickname,money,position,crime) values({id},'{qid}','{nickname}',{10},{cityHallKey},0);"
+            f"insert into user(uid,qid,nickname,money,position,crime,state) values({id},'{qid}','{nickname}',{10},{cityHallKey},0,0);"
             )
         conn.commit()
         cur.close()
@@ -158,7 +162,7 @@ class monoGroup(Group):
         if not data:
             return False
         else:
-            return monoUser(self,data[0][0],data[0][2],data[0][3],data[0][4],data[0][5])
+            return monoUser(self,data[0][0],data[0][2],data[0][3],data[0][4],data[0][5],data[0][6])
     def draw_map(self):
         if not os.path.exists('data/Monopoly/user/'+self.gid):
             os.makedirs('data/Monopoly/user/'+self.gid)
@@ -215,17 +219,22 @@ class monoGroup(Group):
                 thisLine+=1
                 i+=1
         mapImg.save('data/map.png')
+class monoUserState(Enum):
+    normal = 0
+    cityJailed = 1
+    illegalJailed = 2
 
 class monoUser(User):
     position = Chunk
     crime =0
-    def __init__(self, group: Group,uid,nickname,money,positionID,crime) -> None:
+    def __init__(self, group: Group,uid,nickname,money,positionID,crime,state) -> None:
         self.group = group
         self.uid = uid
         self.nickname = nickname
         self.money = money
         self.position = Chunk.search_by_id(self.group.gid,positionID)
         self.crime = crime
+        self.state = monoUserState(state)
     def get_near_chunk(self):
         up = Chunk.search_by_xy(self.group.gid,self.position.x,self.position.y-1)
         down = Chunk.search_by_xy(self.group.gid,self.position.x,self.position.y+1)
@@ -288,6 +297,13 @@ class monoUser(User):
         conn = sqlite3.connect(f"data/INDEX/{self.group.gid}.db")
         cur = conn.cursor()
         cur.execute(f"UPDATE user SET crime={self.crime} where uid='{self.uid}';")
+        conn.commit()
+        conn.close()
+    def change_state(self,state):
+        self.state = monoUserState(state)
+        conn = sqlite3.connect(f"data/INDEX/{self.group.gid}.db")
+        cur = conn.cursor()
+        cur.execute(f"UPDATE user SET state={state} where uid='{self.uid}';")
         conn.commit()
         conn.close()
 
