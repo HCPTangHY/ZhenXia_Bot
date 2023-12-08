@@ -1,20 +1,17 @@
 import os,sqlite3
 
-class Group:
-    def __init__(self,gid) -> None:
-        self.gid = gid
-        if not os.path.exists('data/INDEX'):
-            os.makedirs('data/INDEX')
-        conn = sqlite3.connect(f"data/INDEX/{self.gid}.db")
-        cur = conn.cursor()
-        cur.execute("create table if not exists user(uid TEXT PRIMARY KEY,qid TEXT,nickname TEXT,money REAL)")
-        conn.commit()
-        cur.close()
-
-    def new_user(self,qid,nickname):
-        if self.find_user_by_qid(qid):
+class User:
+    uid = qid = -1
+    nickname = ''
+    money = -1
+    def __init__(self,uid,qid,groups:list,nickname,money) -> None:
+        self.uid,self.qid,self.nickname,self.money = uid,qid,nickname,money
+        self.groups = groups
+    @staticmethod
+    def new_user(qid,gid,nickname):
+        if User.find_user_by_qid(qid):
             return False
-        conn = sqlite3.connect(f"data/INDEX/{self.gid}.db")
+        conn = sqlite3.connect(f"data/INDEX/users.db")
         cur = conn.cursor()
         data = cur.execute(f"select * from user;").fetchall()
         id = 1
@@ -22,50 +19,51 @@ class Group:
             if id<=int(item[0]):
                 id = int(item[0])+1
         cur.execute(
-            f"insert into user(uid,qid,nickname,money) values({id},'{qid}','{nickname}',{10});"
+            f"insert into user(uid,qid,groups,nickname,money) values({id},'{qid}',{gid},'{nickname}',{10});"
             )
         conn.commit()
         cur.close()
 
-    def find_user_by_qid(self,qid):
-        conn = sqlite3.connect(f"data/INDEX/{self.gid}.db")
+    @staticmethod
+    def find_user_by_qid(qid):
+        conn = sqlite3.connect(f"data/INDEX/users.db")
         cur = conn.cursor()
         data = cur.execute(f"select * from user where qid='{qid}';").fetchall()
         conn.close()
         if len(data)==0:
-            return False
+            return 'NoUser'
         else:
-            u = User(self)
-            u.uid = data[0][0]
-            u.qid = data[0][1]
-            u.nickname = data[0][2]
-            u.money = data[0][3]
-            return u
-    def find_user_by_uid(self,id):
-        conn = sqlite3.connect(f"data/INDEX/{self.gid}.db")
+            return User(data[0][0],data[0][1],str(data[0][2]).split(","),data[0][3],data[0][4])
+    @staticmethod
+    def find_user_by_uid(uid):
+        conn = sqlite3.connect(f"data/INDEX/users.db")
         cur = conn.cursor()
-        data = cur.execute(f"select * from user where uid='{id}';").fetchall()
+        data = cur.execute(f"select * from user where uid='{uid}';").fetchall()
         conn.close()
         if len(data)==0:
-            return False
+            return 'NoUser'
         else:
-            u = User(self)
-            u.uid = data[0][0]
-            u.qid = data[0][1]
-            u.nickname = data[0][2]
-            u.money = data[0][3]
-            return u
-
-class User:
-    uid = qid = -1
-    nickname = ''
-    money = -1
-    def __init__(self,group:Group) -> None:
-        self.group = group
-
+            return User(data[0][0],data[0][1],str(data[0][2]).split(","),data[0][3],data[0][4])
+    @staticmethod
+    def rich_rank(gid):
+        conn = sqlite3.connect(f"data/INDEX/users.db")
+        cur = conn.cursor()
+        data = cur.execute(f"select uid,groups from user order by money DESC;").fetchall()
+        conn.close()
+        us:list[User] = []
+        for d in data:
+            if gid in str(d[1]):
+                us.append(User.find_user_by_uid(d[0]))
+        return us
+    def add_group(self,gid):
+        self.groups.append(gid)
+        conn = sqlite3.connect(f"data/INDEX/users.db")
+        cur = conn.cursor()
+        cur.execute(f"UPDATE user SET groups='{','.join(self.groups)}' where uid='{self.uid}'")
+        conn.commit()
     def rename(self,new_name):
         self.nickname = new_name
-        conn = sqlite3.connect(f"data/INDEX/{self.group.gid}.db")
+        conn = sqlite3.connect(f"data/INDEX/users.db")
         cur = conn.cursor()
         cur.execute(f"UPDATE user SET nickname='{new_name}' where uid='{self.uid}';")
         conn.commit()
@@ -73,7 +71,7 @@ class User:
 
     def add_money(self,money):
         self.money += money
-        conn = sqlite3.connect(f"data/INDEX/{self.group.gid}.db")
+        conn = sqlite3.connect(f"data/INDEX/users.db")
         cur = conn.cursor()
         cur.execute(f"UPDATE user SET money={self.money} where uid='{self.uid}';")
         conn.commit()

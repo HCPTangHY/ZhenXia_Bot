@@ -6,8 +6,8 @@ from nonebot.adapters.red.message import MessageSegment
 import re,os,random,time,numpy,jieba
 
 
-models = ["枕小霞2.1","枕小霞1.6","文和武乱1.0","大明王朝2.0","50W语料","贴吧300W","微博450W"]
-modelPath = ["model/ZX2.1","model/ZX1.6","model/whwl1.0","model/1566","model/model_epoch40_50w","model/tieba","model/weibo"]
+models = ["50W语料","枕小霞2.1","枕小霞1.6","文和武乱1.0","大明王朝2.0","贴吧300W","微博450W"]
+modelPath = ["model/model_epoch40_50w","model/ZX2.1","model/ZX1.6","model/whwl1.0","model/1566","model/tieba","model/weibo"]
 
 modelUsing = models[0]
 groups = {872847025:{"reMsg":"", "msgQueue":[],"msgHistory":[],"lastMsg":""}}
@@ -23,8 +23,10 @@ def msg_preprocess(msg:str):
 def reply_process(text:str):
     text = re.sub(r'.*?chatbot:','',text)
     text = re.sub(r'#.*#','',text)
-    text = re.sub('-','',text)
+    text = text.replace("-","")
+    text = text.replace("，？","？")
     text = text.strip()
+    if text=='图片评论':text='😄'
     if len(text)>=2:
         if text[-1] == '，' and text[-2] == '，':
             return text
@@ -37,13 +39,13 @@ def reply_process(text:str):
         return text
 def msgQueueInput(msgQueue : list,msg : str):
     msgQueue.append(msg)
-    if len(msgQueue)>15:
+    if len(msgQueue)>10:
         msgQueue.pop(0)
     return msgQueue
 def GPTchat(history:str):
     path = modelPath[models.index(modelUsing)]
     print(history)
-    content = os.popen('cd ./GPT2_chitchat && python interact.py --model_path {} --max_history_len 15 --one_ans True --history {}'.format(path,history))
+    content = os.popen('cd ./GPT2_chitchat && python interact.py --model_path {} --max_history_len 10 --one_ans True --history {}'.format(path,history))
     text = content.read()
     text = reply_process(text)
     print(text)
@@ -104,9 +106,9 @@ async def g_m(event:MessageEvent):
     group_id = int(event.scene)
     if group_id not in groups:
         group_init(group_id,groups)
-    if (groups[group_id]["lastMsg"] == event.message and groups[group_id]['reMsg'] != event.message):
-        groups[group_id]['reMsg'] = event.message
-        await ask.finish(event.message)
+    if (groups[group_id]["lastMsg"] == event.get_message() and groups[group_id]['reMsg'] != event.get_message()):
+        groups[group_id]['reMsg'] = event.get_message()
+        await ask.finish(event.get_message())
     if ('吃什么' in event.get_plaintext()) :
         with open(file='data/foods.txt',encoding="utf-8",mode="r") as f:
             foods = f.read().split('\n')
