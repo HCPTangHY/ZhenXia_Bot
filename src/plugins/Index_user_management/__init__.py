@@ -48,14 +48,16 @@ async def send_money(event:Event,args: Message = CommandArg()):
         if num<=0:
             await sendMoney.finish(f"{num}？！你在汇什么啊！")
         if target=='NoUser':
-            await sendMoney.finish("对方还没注册呢！让Ta发送注册来让小霞认识一下吧！")
+            await sendMoney.finish(f"对方还没注册呢！让Ta发送注册来让小霞认识一下吧！")
+        if target.uid==u.uid:
+            await sendMoney.finish("你是？")
         else:
             if u.money<num:
-                await sendMoney.finish(f"你没有{num}汇给Ta！")
+                await sendMoney.finish(f"你没有{num}汇给{target.nickname}！")
             else:
                 u.add_money(-num)
                 target.add_money(num)
-                await sendMoney.finish(f"火币到账！你汇了{num}给Ta！")
+                await sendMoney.finish(f"火币到账！你汇了{num}给{target.nickname}！")
 
 askRichRank = on_command("财富排行",priority=10,block=True)
 @askRichRank.handle()

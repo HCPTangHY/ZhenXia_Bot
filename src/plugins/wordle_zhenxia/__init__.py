@@ -17,10 +17,13 @@ import re,random
 wordles = []
 timers: Dict[str, TimerHandle] = {}
 class Enermy():
-    def __init__(self,type,participate:list,object:Wordle) -> None:
+    def __init__(self,type,participate:dict,object:Wordle) -> None:
         self.type = type
-        self.participate:list = participate
+        self.participate:dict = participate
         self.object = object
+        self.wordState = []
+        for w in self.object.word:
+            self.wordState.append(0)
 async def stop_game(matcher: Matcher, event:Event,session: str,user:User):
     timers.pop(session, None)
     gid = event.get_session_id().split("_")[0]
@@ -31,15 +34,10 @@ async def stop_game(matcher: Matcher, event:Event,session: str,user:User):
             msg = "猜单词超时，游戏结束！"
             moneyDesc = None
             if len(e.object.guessed_words) >= 1:
-                dict = {}
-                for u in e.participate:
-                    dict[u] = dict.get(u, 0) + 1
-                for key,val in dict.items():
-                    money = pow(e.object.length,2)-10*e.object.length+30
-                    money = (-money)*val/len(e.object.guessed_words)
-                    if key==e.participate[-1]:money*=2
-                    moneyDesc += MessageSegment.at(key)+f" 被抢走{-round(money,2)}火币!\n"
-                    u = User.find_user_by_qid(key).add_money(money)
+                for key,val in e.participate.items():
+                    money = val*0.125
+                    moneyDesc += MessageSegment.at(key)+f" 获得{-round(money,2)}火币!\n"
+                    User.find_user_by_qid(key).add_money(money)
                 msg += f"\n{e.object.result}"
             await matcher.finish(msg+"\n"+moneyDesc)
 
@@ -66,6 +64,15 @@ def wordle_battle(matcher:Matcher,event:Event,user:User,enermy:Enermy):
                 return GuessResult.LOSS,enermy
             if len(word) != enermy.object.length:
                 return 'noLength',enermy
+            for i in range(len(enermy.object.word)):
+                if enermy.object.word[i]==word[i]:
+                    if enermy.wordState[i]==0:enermy.participate[user.qid] = enermy.participate.get(user.qid,0)+2
+                    elif enermy.wordState[i]==1:enermy.participate[user.qid] = enermy.participate.get(user.qid,0)+0.5
+                    enermy.wordState[i] = 2
+                elif enermy.object.word[i] in word:
+                    if enermy.wordState[i]==0:
+                        enermy.participate[user.qid] = enermy.participate.get(user.qid,0)+0.5
+                        enermy.wordState[i] = 1
             state = enermy.object.guess(word)
             wordles[wordles.index(w)]['enermy'] = enermy
     return state,enermy
@@ -92,12 +99,12 @@ async def wordle_action(event:Event):
                 await wordle.finish("有一个沃兜在进行哦")
         if random.random()<=0.2:
             word,meaning = random_word("CET6",random.choice([3,4,4,5,5,5,6,6,7]))
-            e = Enermy('精英',[],Wordle(word,meaning))
+            e = Enermy('精英',{},Wordle(word,meaning))
             wordles.append({'session':event.get_session_id(),'enermy':e,'from':'explore'})
             await wordle.finish(MessageSegment.image(e.object.draw())+f"\n你遇到了精英沃兜！\n你有{e.object.rows}次机会猜出单词，单词长度为{e.object.length}，请发送单词")
         else:
             word,meaning = random_word("CET4",random.choice([5,5,5,5,6]))
-            e = Enermy('野生',[],Wordle(word,meaning))
+            e = Enermy('野生',{},Wordle(word,meaning))
             wordles.append({'session':event.get_session_id(),'enermy':e,'from':'explore'})
             await wordle.finish(MessageSegment.image(e.object.draw())+f"\n你遇到了野生沃兜！\n你有{e.object.rows}次机会猜出单词，单词长度为{e.object.length}，请发送单词")
 wordMatcher = on_message(Rule(game_running) & get_word_input, block=True, priority=12)
@@ -114,32 +121,22 @@ async def _(event: Event):
                 user = User.find_user_by_qid(event.get_user_id())
                 state,e = wordle_battle(wordle,event,user,w['enermy'])
                 if state==GuessResult.WIN or state==GuessResult.LOSS:
-                    e.participate.append(user.qid)
                     wordles[wordles.index(w)]['enermy'] = e
                     wordles.pop(wordles.index(w))
                     if state==GuessResult.LOSS:
-                        dict = {}
-                        for u in e.participate:
-                            dict[u] = dict.get(u, 0) + 1
                         moneyDesc = None
-                        for key,val in dict.items():
-                            money = pow(e.object.length,2)-10*e.object.length+30
-                            money = (-money)*val/len(e.object.guessed_words)
-                            if key==e.participate[-1]:money*=2
-                            moneyDesc += MessageSegment.at(key)+f" 被抢走{-round(money,2)}火币!\n"
-                            u = User.find_user_by_qid(key).add_money(money)
+                        if len(e.participate)==0:moneyDesc=''
+                        for key,val in e.participate.items():
+                            money = val*0.125
+                            moneyDesc += MessageSegment.at(key)+f" 获得{round(money,2)}火币!\n"
+                            User.find_user_by_qid(key).add_money(money)
                         await wordle.finish(MessageSegment.image(e.object.draw())+f'\n{e.object.result}\n'+moneyDesc)
                     elif state==GuessResult.WIN:
-                        dict = {}
-                        for u in e.participate:
-                            dict[u] = dict.get(u, 0) + 1
                         moneyDesc = None
-                        for key,val in dict.items():
-                            money = pow(e.object.length,2)-10*e.object.length+30
-                            money = (money-len(e.object.guessed_words)+3.5)*(val/len(e.object.guessed_words))
-                            if (key==e.participate[-1]) and (len(dict)!=1):money*=2
+                        for key,val in e.participate.items():
+                            money = val*0.8
                             moneyDesc += MessageSegment.at(key)+f" 获得{round(money,2)}火币!\n"
-                            u = User.find_user_by_qid(key).add_money(money)
+                            User.find_user_by_qid(key).add_money(money)
                         await wordle.finish(MessageSegment.image(e.object.draw())+f'\n{e.object.result}\n战斗胜利！\n'+moneyDesc)
                 else:
                     if state=='noHint':
@@ -147,8 +144,7 @@ async def _(event: Event):
                     elif state=='hint':
                         hint = e.object.get_hint()
                         if user.money>=1:
-                            user.add_money(-1)
-                            await wordle.send('你花了1火币换取提示'+MessageSegment.image(e.object.draw_hint(hint)))
+                            await wordle.send(MessageSegment.image(e.object.draw_hint(hint)))
                         else:
                             await wordle.send('没有火币换取提示哦')
                     elif state=='noLength':
@@ -158,7 +154,5 @@ async def _(event: Event):
                     elif state==GuessResult.ILLEGAL:
                         await wordle.send(f"你确定 {event.get_plaintext()} 是一个合法的单词吗？")
                     else:
-                        e.participate.append(user.qid)
-                        wordles[wordles.index(w)]['enermy'] = e
                         await wordle.send(MessageSegment.image(e.object.draw()))
                 break

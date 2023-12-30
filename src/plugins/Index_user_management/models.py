@@ -9,7 +9,7 @@ class User:
         self.groups = groups
     @staticmethod
     def new_user(qid,gid,nickname):
-        if User.find_user_by_qid(qid):
+        if User.find_user_by_qid(qid)!="NoUser":
             return False
         conn = sqlite3.connect(f"data/INDEX/users.db")
         cur = conn.cursor()
@@ -19,7 +19,7 @@ class User:
             if id<=int(item[0]):
                 id = int(item[0])+1
         cur.execute(
-            f"insert into user(uid,qid,groups,nickname,money) values({id},'{qid}',{gid},'{nickname}',{10});"
+            f"INSERT OR IGNORE INTO user(uid,qid,groups,nickname,money) values({id},'{qid}','{gid}','{nickname}',{10});"
             )
         conn.commit()
         cur.close()

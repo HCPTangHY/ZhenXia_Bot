@@ -25,13 +25,36 @@ async def on_QBTP(event:PrivateMessageEvent):
     Action = data["body"]["Action"]
     content = data["body"]["content"]
     footer = data["footer"]
-    if check_authentification(header["From"],header["Authentification"]) and header["From"]==event.get_user_id() and header["To"]=="3046199658":
+    if check_authentification(header["From"],header["Authentication"]) and header["From"]==event.get_user_id() and header["To"]=="3046199658":
         if time.time()-footer["timestamp"]<=5000:
             if Action=="addMoney":
-                u = User.find_user_by_qid(content["user_id"])
-                u.add_money(content["money"])
-                await onQBTP.finish('QBTP="header":{"From":"3046199658","To":"{}","Content-Type":"JSON"},"body":{"content":{"group_id":{},"user_id":{},"user_money":{}}}}'.format(event.get_user_id(),content["group_id"],content["user_id"],u.money))
+                u = User.find_user_by_qid(str(content["user_id"]))
+                if u=='NoUser':await onQBTP.finish("NoUser!")
+                if u.money+float(content["money"])<=0:
+                    await onQBTP.send("火币不足")
+                else:
+                    u.add_money(content["money"])
+                await onQBTP.finish(
+                    f'QBTP={{"header":{{"From":"3046199658","To":"{event.get_user_id()}","Content-Type":"JSON"}},"body":{{"content":{{"user_id":"{content["user_id"]}","user_money":{u.money}}},"footer":{{"timestamp":{time.time()}}}}}}}')
         else:await onQBTP.finish("时间超时！")
     else:await onQBTP.finish("鉴权失败！")
 
+# testQBTP = on_message(rule=Rule(check_QBTP_message),priority=9,block=True)
+# @testQBTP.handle()
+# async def on_QBTP(event:PrivateMessageEvent):
+#     data = re.sub("QBTP=","",event.get_plaintext())
+#     data = json.loads(data)
+#     header = data["header"]
+#     action = data["body"]["Action"]
+#     content = data["body"]["content"]
+#     footer = data["footer"]
+#     if check_authentification(header["From"],header["Authentication"]) and header["From"]==event.get_user_id() and header["To"]=="3046199658":
+#         if time.time()-footer["timestamp"]<=5000:
+#             if action=="addMoney":
+#                 u = User.find_user_by_qid(content["user_id"])
+#                 await testQBTP.send(u)
+#                 u.add_money(content["money"])
+#                 await testQBTP.finish('QBTP="header":{"From":"3046199658","To":"{}","Content-Type":"JSON"},"body":{"content":{"group_id":{},"user_id":{},"user_money":{}}}}'.format(event.get_user_id(),content["group_id"],content["user_id"],u.money))
+#         else:await testQBTP.finish("时间超时！")
+#     else:await testQBTP.finish("鉴权失败！")
 # generated_key = secrets.token_urlsafe(15)

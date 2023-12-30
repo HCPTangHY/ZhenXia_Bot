@@ -10,7 +10,7 @@ OneApplePie,一角苹果派,招牌的苹果馅饼，几乎刚出炉就会买完,
 ApplePie,苹果派,招牌的苹果馅饼，几乎刚出炉就会买完,吃(3HP)|eat_food:3;0/投掷|throw_damage:1,oven|苹果 黄油 面团 糖 鸡蛋
 PawCoffee,猫爪咖啡,普通的拿铁，有着猫爪般的拉花,吃(10AP)|eat_food:0;10/泼洒|throw_damage:3,猫爪咖啡机|咖啡粉 牛奶 糖
 Cappuccino,卡布奇诺,咖啡与奶，意大利做法,吃(10AP)|eat_food:0;10/泼洒|throw_damage:3,咖啡机|咖啡粉 牛奶 奶泡
-Caramel Macchiato,焦糖玛奇朵,热牛奶，咖啡与香草的碰撞，焦糖浆在上面晶莹闪烁,吃(10AP)|eat_food:0;10/泼洒|throw_damage:3,咖啡机|焦糖浆 咖啡粉 牛奶 奶油
+CaramelMacchiato,焦糖玛奇朵,热牛奶，咖啡与香草的碰撞，焦糖浆在上面晶莹闪烁,吃(10AP)|eat_food:0;10/泼洒|throw_damage:3,咖啡机|焦糖浆 咖啡粉 牛奶 奶油
 Milkshake,奶昔,巧克力或者草莓味的奶昔，有时候还有饼干碎,吃(5HP)|eat_food:5;0/泼洒|throw_damage:3,料理机|牛奶 草莓 冰块
 MilkTea,奶茶,嗯~第一口就喝到了珠珠欸~,吃(5HP5AP)|eat_food:5;5/泼洒|throw_damage:3,煮锅|牛奶 茶 木薯珍珠
 CrepesStrawberry,草莓可丽饼,酸酸甜甜的可丽饼，深受女性顾客喜爱,吃(5HP)|eat_food:5;0/投掷|throw_damage:2,可丽饼烤盘|面糊 奶油 草莓
@@ -21,3 +21,13 @@ CatNews,猫猫日报,每日发行的猫猫日报，记录城市的日常事务,/
 RedRose,红玫瑰,一朵红玫瑰，我爱你,/击打|make_damage:5,
 Sunflower,向日葵,一束向日葵，信念、光辉、热爱,/击打|make_damage:5,
 Tulip,郁金香,一朵郁金香，记得不要让猫咪咬到哦,/击打|make_damage:2,
+PinkLily,粉百合,一株粉百合，带着一抹羞意的清纯可爱,/击打|make_damage:2,
+CatSofa,猫肚皮圆形沙发,柔软到不可思议的圆形沙发！完全放松地躺在上面会不由自主地陷下去...被沙发捉住了呢……,/投掷|throw_damage:20,
+CatWoodenBed,猫团团实木床,雕刻有猫团图标的梨花木小床，超级结实。听说可以同时承重30只猫而不嘎吱嘎吱响哦！ #家具,睡觉|sleep/投掷|throw_damage:20,
+CatBreadPillow,猫猫面包枕,母鸡蹲形状的抱枕，从侧面看上去好像随时都会逃跑~~,/击打|make_damage:2
+CatLeftPawPillow,猫左爪垫ฅ抱枕,做成左爪形状的抱枕ฅ，让人忍不住想要疯狂捏捏,/击打|make_damage:2
+CatRightPawPillow,猫右爪垫ฅ抱枕,做成右爪形状的抱枕ฅ，让人忍不住想要疯狂捏捏,/击打|make_damage:2
+CatWhiskerBottle,猫胡须香薰瓶,三根做成猫胡须状的散香棒，错落地放置在巴掌大的白瓷小瓶里。要放在离桌子边远一点的地方！,/投掷|throw_damage:10
+CatCoffeeTable,猫窝小茶几,藤条编织的小茶几，上面可以摆放6只小茶杯，下面的空间可以容纳3只猫或者2只犭苗或者1只犭艹田……啊，真是幸福的同居生活~,放置物品|put_something/击打|make_damage:2
+CatSeatCushion,猫饼小坐垫,毛毡缝就的小坐垫，做的时候请尽量坐满，以免漏出来的部分被猫抓得稀烂QAQ,/击打|make_damage:2
+Bed,床,床！被窝！ #家具,睡觉|sleep/投掷|throw_damage:20,

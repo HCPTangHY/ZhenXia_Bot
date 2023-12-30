@@ -119,14 +119,15 @@ async def g_m(event:MessageEvent):
             stopwords = f.read().split('\n')
         l = [i for i in l if not i in stopwords]
         word = random.choice(l)
-        await ask.finish(f"好！多说「{word}」，你说「{word}」，你就好！")
+        like = '喜欢' if random.random()<0.5 else '害怕'
+        await ask.finish(like+word)
     msg = event.message.extract_plain_text()
     msg = msg.strip()
     msg = msg.replace(" ","")
     if (msg != '') and ('[CQ:' not in msg) and ('/' not in msg) and ('wordle' not in msg):
         groups[group_id]["msgQueue"] = msgQueueInput(groups[group_id]["msgQueue"],msg)
     groups[group_id]["lastMsg"] = event.message
-    if random.random()<0.175:
+    if random.random()<0.025:
         history = " ".join(groups[group_id]["msgQueue"])
         print(history)
         ans = GPTchat(history)
