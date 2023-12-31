@@ -85,7 +85,8 @@ async def askGPT(event:GroupMessageEvent):
 
 change_model = on_command("切换模型",aliases={"changeModel"},priority=10,block=True)
 @change_model.handle()
-async def changeModel(args: Message = CommandArg()):
+async def changeModel(event,args: Message = CommandArg()):
+    if event.get_user_id()!="1847680031":await change_model.finish()
     m = args.extract_plain_text()
     if m in models:
         global modelUsing
